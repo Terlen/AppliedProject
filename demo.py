@@ -1,14 +1,16 @@
+# Import pyscard functionality
 from smartcard.System import readers
 from smartcard.CardType import ATRCardType
 from smartcard.CardRequest import CardRequest
 from smartcard.util import toHexString, toBytes
 from smartcard.Exceptions import *
 
-
+# Select first (only) connected smartcard reader
 reader = readers()[0]
 print ("Currently attached reader: ",reader)
 connection = reader.createConnection()
 
+# Attempt to validate smartcard connection, if fail exit. For proof of concept, requires card to be present on reader at moment of test before script continues.
 try:
     connection.connect()
     print ("Smart card detected!")
@@ -17,7 +19,9 @@ except NoCardException:
     exit()
 
 input("Press enter to continue")
+# Send auth key to card reader to authenticate future card requests
 print ("\nLoading authentication key [FF FF FF FF FF FF] to reader")
+# Data packet to transfer to reader, 5 byte header / 6 byte payload 
 DATA = [0xFF, 0x82, 0x00, 0x00, 0x06, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]
 response, sw1, sw2 = connection.transmit(DATA)
 print ("Reader response code: ",toHexString([sw1]),toHexString([sw2]))
@@ -30,7 +34,10 @@ while True:
     operation = input("Would you like to read or write? (R/W)").upper()
     if operation == "R":
         blockAddress = input ("Please enter the address of the block you would like to read: (0x00 - 0x3E)(0xXX)")
+        # No input validation for proof of concept
+        # Convert input to hex
         blockAddress = int(blockAddress, 16)
+        # Authenticate using stored auth key to smartcard memory block specified by user
         DATA = [0xFF, 0x86, 0x00, 0x00, 0x05, 0x01, 0x00, blockAddress, 0x60, 0x00]
         response, sw1, sw2 = connection.transmit(DATA)
         if sw1 == 144:
@@ -38,6 +45,7 @@ while True:
         elif sw1 == 99:
             print("Authentication error, please try again.")
             continue
+        # Once successfully authenticated, transmit read instruction to fetch data from smartcard
         DATA = [0xFF, 0xB0, 0x00, blockAddress, 0x10]
         response, sw1, sw2 = connection.transmit(DATA)
         if sw1 == 144:
@@ -59,6 +67,7 @@ while True:
         DATA = [0xFF, 0xB0, 0x00, blockAddress, 0x10]
         response, sw1, sw2 = connection.transmit(DATA)
         oldData = response
+        # For proof of concept, fill data block with duplicate data. Makes it easy to demonstrate visually
         DATA = [0xFF, 0xD6, 0x00, blockAddress, 0x10, writeData, writeData, writeData, writeData, writeData, writeData, writeData, writeData, writeData,
                 writeData, writeData, writeData, writeData, writeData, writeData, writeData]
         response, wsw1, wsw2 = connection.transmit(DATA)
